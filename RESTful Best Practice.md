@@ -162,4 +162,38 @@ HTTP `GET`方法被用来检索（或查询）资源的表述。在“Happy”�
 > DELETE http://www.example.com/customers/12345/orders  
 > DELETE http://www.example.com/buckets/sample
 
-删除成功时，返回`200`和响应体，可能是被删除资源的表述（经常需要太多带宽），或者一个包装过的响应（见下面*返回值*）。又或者是返回状态`204`（NO CONTENT）。换句话说，一个没有体的`204`状态，或者
+删除成功时，返回`200`和响应体，可能是被删除资源的表述（经常需要太多带宽），或者一个包装过的响应（见下面*返回值*）。又或者是返回状态`204`（NO CONTENT）。换句话说，一个没有体的`204`状态，或者`JSEND`风格的响应和`200`状态，这两种是推荐的响应。
+
+HTTP规范定义`DELETE`是幂等的。如果你删除一个资源，它就被移除了。重复在这个资源上调用`DELETE`结果相同，该资源没有了。如果调用`DELETE`会导致（资源内）计数器自减，这样的调用就不是幂等了。正如前面提到的，使用统计和度量可能会被更新，但是只要没有资源数据被改变仍然认为service幂等。对非幂等的请求使用`POST`是被推荐的。
+
+但是，关于`DELETE`幂等有一个注意点。在一个资源上第二次调用`DELETE`通常会返回`404`（NOT FOUND）因为该资源已经被移除所以不能再被发现。这将导致`DELETE`操作不再幂等。但是如果资源从数据库移除而不是被简单的标记为已删除，这是一个适当的妥协。
+
+下面这张表总结了主要的HTTP方法结合资源URI时推荐的返回值：
+
+|| HTTP Verb     || /customers              || /customers/{id}||  
+|| GET           ||200 (OK)                 ||fasf||
+
+
+<table>
+    <tbody>
+        <tr>
+            <td>key</td>
+            <td>key</td>
+            <td>key</td>
+            <td>key</td>
+        </tr>
+        <tr>
+            <td>value</td>
+            <td>value</td>
+            <td>value</td>
+            <td>value</td>
+        </tr>
+    </tbody>
+</table>
+
+First Header  | Second Header
+------------- | -------------
+Content Cell  | Content Cell
+Content Cell  | Content Cell
+
+
