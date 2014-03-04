@@ -170,30 +170,65 @@ HTTP规范定义`DELETE`是幂等的。如果你删除一个资源，它就被�
 
 下面这张表总结了主要的HTTP方法结合资源URI时推荐的返回值：
 
-|| HTTP Verb     || /customers              || /customers/{id}||  
-|| GET           ||200 (OK)                 ||fasf||
+| HTTP Verb  | /customers | /customers/{id} |
+|------------|:-----------|:----------------|
+| GET        |200(OK), customer列表使用分页，排序和过滤来操作大列表|200(OK)，单个Customer。当ID没找到或者无效时返回404(NOT FOUND)|
+| PUT        |404(NOT FOUND)，除非你希望对整个集合的每一个资源都进行更新/替换|200(OK)或者204(NO CONTENT)，当ID没找到或者无效时返回404(NOT FOUND)|
+| POST       |201(CREATED),"Location"头包含一个带有新ID的链接指向/customers/{id}|404(NOT FOUND)|
+| DELETE     |404(NOT FOUND)，除非你想删除整个集合——通常这不是你希望的|200(OK)。当ID没找到或者无效时返回404(NOT FOUND)|
 
+## 资源命名 ##
+除了恰当的使用HTTP动词，资源的命名可能是在创建易理解，易使用的 Web service API 时争论最多，也是最重要的概念。当资源命名得当，API就会很直观，也易于使用。没做好的话，同样的API也会显得笨拙，难以使用和理解。下面是一些小贴士帮助你创建新的API。
 
-<table>
-    <tbody>
-        <tr>
-            <td>key</td>
-            <td>key</td>
-            <td>key</td>
-            <td>key</td>
-        </tr>
-        <tr>
-            <td>value</td>
-            <td>value</td>
-            <td>value</td>
-            <td>value</td>
-        </tr>
-    </tbody>
-</table>
+本质上看，RESTful API 是一组URI的集合，使用HTTP调用这些URI，然后用JSON和/或XML来表述这些资源，通常还会包含相关的链接。RESTful可定位能力是通过URI来包含的。每一个资源都有其地址和URI——服务端能提供的所有有意义的信息都是作为资源来暴露出去，*统一接口*约束部分是通过URI和HTTP动词相结合并按标准和约定使用来实现的。
 
-First Header  | Second Header
-------------- | -------------
-Content Cell  | Content Cell
-Content Cell  | Content Cell
+当决定在系统中包含哪些资源，就用名词来命名他们，换言之，一个RESTful URI指向的资源应该是一个东西，而不是指向一个动作。名词具有属性而动词没有，这也是另一个显著的因素。
 
+关于资源的一些示例：
 
+* Users of the system.
+* Courses in which a student is enrolled.
+* A user's timeline of posts.
+* The users that follow another user.
+* An article about horseback riding.
+
+service中每一个资源至少有一个URI去标识它，URI有意义并且能充分描述这个资源那是最好的。URI应当是可预见的，使用分层结构去提高其可理解性，这样也就提高了可用性，可预见意味着他们是一致的，分层意味着数据是由结构的——通过他们之间的关系。这不是REST的规则或约束，而是它能增强API的可用性。
+
+RESTful API是为消费者写的，他的名字和URI结构应该要能向使用者传达意义。通常很难去知道数据的边界，但是理解了你的数据，你就最可能抓住重点然后给你的客户端返回合理的表述。为你的客户考虑，而不是你的数据。
+
+我们来描述这样一个订单系统，包括customers，orders，line items，products等，考虑一下描述这些资源的URI：
+### *资源URI示例* ###
+插入（创建）一个新的customer：
+> `POST` http://www.example.com/customers
+
+查询ID为33245的Customer
+> `GET`  http://www.example.com/customers/33245
+
+同样也可以对上面的URI进行更新(UPDATE)和删除(DELETE)操作。
+
+创建一个新的product：
+> `POST` http://www.example.com/products
+
+查询，更新，删除product 66432
+> `GET`|`PUT`|`DELETE` http://www.example.com/products/66432
+
+下面就有趣了，如何为一个customer创建一个新的order
+一种方案可能是：
+> `POST` http://www.example.com/orders
+
+这样是会创建一个新的order，但是可能是跟customer没有关系的。  
+因为我们是想为customer创建一个order（注意关系），这个URI可能并不直观。有人提出像下面那种URI会更清晰：
+> `POST` http://www.example.com/customers/33245/orders
+
+这会给ID为33245的customer创建一个order
+
+然后
+> `GET` http://www.example.com/customers/33245/orders
+
+将会返回customer33245所创建或者拥有的orders。注意：我们可能会选择不支持`DELETE`和`PUT`操作因为它操作的是一个集合。
+
+现在继续我们分层的概念，看下面的URI：
+> `POST` http://www.example.com/customers/33245/orders/8769/lineitems
+
+这会给order8769增加一个lineitem。对！对这个URI进行GET将会返回这个order的所有lineitem。但是，如果lineitem在customer上下文中没有意义或者也在customer之外有意义，我们会进行这样的POST：
+> `POST` www.example.com/orders/8769/lineitems
