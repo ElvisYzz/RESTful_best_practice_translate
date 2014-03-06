@@ -546,6 +546,28 @@ JSONP在一些不支持CORS的遗留浏览器中工作，但是如果要去支�
 ## 日期/时间处理 ##
 ## service安全 ##
 ## 缓存和拓展性 ##
+缓存允许系统各层次消除远程调用检索被请求的数据，从而提高了可拓展性。service通过在响应中设置header来提高缓存能力。不幸的是，HTTP1.0和HTTP1.1中缓存相关的header是不一样的，所以service应该两个都支持。下面是支持GET请求的最少需要的header，和一些合适的值的描述。
+
+|HTTP Header |Description |Example|
+|------------|:-----------|:------|
+|Date |响应返回的日期和时间(使用RFC1123格式)。|Date: Sun, 06 Nov 1994 08:49:37 GMT
+|Cache-Control| 响应能被缓存的最大秒数（max age）。但是如果响应不支持缓存，那么值为no-cache。| Cache-Control: 360  Cache-Control: no-cache|
+|Expires| 如果给出了max age,包含了响应过期的时间戳（RFC1123格式),也就是Date的值(e.g. now)加上max age。如果缓存不支持，将不会有这个header| Expires: Sun, 06 Nov 1994 08:49:37 GMT|
+|Pragma | 当 Cache-Control 值为 'no-cache' 这个header也被设为 'no-cache'. 否则，不出现。| Pragma: no-cache|
+|Last-Modified| 资源本身最后被修改的时间(RFC1123格式)。| Last-Modified: Sun, 06 Nov 1994 08:49:37 GMT|
+
+为简化起见，这里是一个简答的GET请求，支持缓存一天的header集：
+*Cache-Control: 86400
+Date: Wed, 29 Feb 2012 23:01:10 GMT
+Last-Modified: Mon, 28 Feb 2011 13:10:14 GMT
+Expires: Thu, 01 Mar 2012 23:01:10 GMT*
+下面是一个相似的响应，但是不允许缓存。
+*Cache-Control: no-cache
+Pragma: no-cache*
+
+### ETag header###
+
+
 ## HTTP状态码（Top 10） ##
 下面是RESTful service或者API最常使用的HTTP状态码和它们的一个普遍接受的用法的简要总结。其他HTTP状态码偶尔被使用，但是特殊后者比较高级。大多数service套件只支持下面这些或甚至它的一个子集。
 
