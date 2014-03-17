@@ -521,6 +521,7 @@ cause, or exception name.
 
 #### 支持JSONP ####
 JSONP使用GET请求对所有service调用来绕过浏览器的限制。本质上，请求者添加一个query-string参数（例如jsonp=“jsonp_callback”），jsonp参数的值是一个响应返回时将被调用的javascript的函数名。
+
 这些功能的严重局限性被JSONP所允许，因为GET请求并不包含一个请求体，因此信息必须通过query-string参数进行传递。为了支持PUT，POST和DELETE操作，有效的HTTP方法必须通过query-string参数进行传递，例如_method=POST.所以这种方式并不被推荐，也会给service带来安全风险。
 
 JSONP在一些不支持CORS的遗留浏览器中工作，但是如果要去支持JSONP，这影响一个service的创建方式。或者，JSONP可以通过代理来实现。总之，为了支持CORS，JSONP不再被重视，任何有可能时都去支持CORS。
@@ -542,7 +543,34 @@ JSONP在一些不支持CORS的遗留浏览器中工作，但是如果要去支�
 
 
 ## 查询，过滤，分页 ##
+对于大的数据集，限制返回的数据量从带宽的观点来看是非常重要的。但它从一个UI处理的角度来看同样重要，因为一个用户界面往往只能显示一个巨大的数据集的一小部分。在数据集无限增长的情况下，限制默认情况下返回的数据量是有帮助的。例如，在Twitter的返回一个人的tweets（通过他们的主页时间轴）的情况下，返回了20个项目，除非在请求另有说明，即使这样最多也只返回200个。
+
+除了限制返回的数据量，我们还需要考虑如何为“页”，或通过大型数据集滚动，如果超过了第一子集需要检索。这被称为数据的分页创造“页面” ，然后返回一个更大的列表的已知部分，并通过大型数据集能够页“前进”和“后退” 。另外，我们可能想要指定响应中要包括的资源的字段或属性，从而限制了返回的数据量，我们最终想要查询具体的值和/或为返回的数据排序。
+
+有两种主要的方法来限制​​查询结果并进行分页。首先，索引方案要么是面向页面或以项目为导向。换句话说，传入的请求将指定从哪页开始返回数据，指定每页的数量，或直接指定第一个和最后一个项目数（范围）返回。换句话说，有两个选项，“给我5页​​假设每页显示20项”或“给我100到120之间的内容。
+
+服务提供商正在分裂这个应该如何工作。然而，一些用户界面工具，如Dojo JSON Datastore，选择以模仿HTTP规范使用的字节范围。这是非常有益的，如果你的服务支持开箱即用，因此没有必要在UI工具包和后端服务之间进行翻译。
+
+下方的建议支持Dojo model进行分页，这是使用Range头指定被请求项的范围，也支持利用查询字符串参数。通过支持两种方式，通过先进的用户界面工具包，像Dojo，或者通过简单的，直接的链接和锚标签使用服务将会变得很灵活。它不应该增加开发难度，以支持这两个选项。但是，如果你的service不直接支持UI功能，考虑消除对Range头选项的支持。
+
+需要注意的是查询，过滤和分页不适用于所有服务，这是很重要的一点。此行为是资源特定的，不应该在默认情况下对所有资源支持。服务和资源的文档应该提到哪些端点支持这些更复杂的功能。 
+
+
 ## service版本控制 ##
+直线地说，版本控制是很难的，艰巨的，困难的，充满了心痛，甚至痛苦和极度的悲伤——我们只能说这增添了很多API的复杂性，并可能对访问它的客户端也增加了复杂度。因此，在你的API设计时应当深思熟虑，并努力达到不需要版本化的表述。
+
+不青睐使用版本控制，而不是使用版本控制来支撑不好的API设计。你会在早晨恨自己，如果你需要对你的API进行版本控制，更不用说频繁进行。精益的理念是使用JSON用法来表述，客户端可以容忍出现在一个不破坏响应的新的属性。但即使这样,在某些情况下还是充满了危险，如改变一个包含了内容或验证规则的现有属性的含义。
+
+### *限制结果* ###
+“给我的项目3至55”这种请求方式与HTTP定义中使用Range头的方式是一致的
+
+“The “give me items 3 through 55” way of requesting data is more consistent with how the HTTP spec utilizes the Range header for bytes so we use that metaphor with the Range header. However, the “starting with item 2 give me a maximum of 20 items” is easier for humans to read, formulate and understand so we use that metaphor in supporting the query-string parameters.
+As mentioned above, the recommendation is to support use of both the HTTP Range header plus query-string parameters, offset and limit, in our services to limit results in responses. Note that, given support for both options, the query-string parameters should override the Range header.
+One of the first questions your going to ask is, “Why are we supporting two metaphors with these similar functions as the numbers in the requests will never match? Isn't that confusing?” Um... That's two questions. Well, to answer your question, it may be confusing. The thing is, we want to make things in the ”
+
+摘录来自: Todd Fredrich. “RESTful Best Practices: Recommendations for Creating Web Services (v1.2)”。 iBooks. 
+
+
 ## 日期/时间处理 ##
 日期和时间戳是一个真正头痛的东西，如果不进行适当一致的处理。 
 时区问题可以很容易地突然出现，并因为在JSON的payload中日期仅仅是字符串，解析是一个真正的问题，如果格式不可知，一致或指定。 
