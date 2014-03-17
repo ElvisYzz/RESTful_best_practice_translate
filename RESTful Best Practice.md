@@ -555,12 +555,6 @@ JSONP在一些不支持CORS的遗留浏览器中工作，但是如果要去支�
 
 需要注意的是查询，过滤和分页不适用于所有服务，这是很重要的一点。此行为是资源特定的，不应该在默认情况下对所有资源支持。服务和资源的文档应该提到哪些端点支持这些更复杂的功能。 
 
-
-## service版本控制 ##
-直线地说，版本控制是很难的，艰巨的，困难的，充满了心痛，甚至痛苦和极度的悲伤——我们只能说这增添了很多API的复杂性，并可能对访问它的客户端也增加了复杂度。因此，在你的API设计时应当深思熟虑，并努力达到不需要版本化的表述。
-
-不青睐使用版本控制，而不是使用版本控制来支撑不好的API设计。你会在早晨恨自己，如果你需要对你的API进行版本控制，更不用说频繁进行。精益的理念是使用JSON用法来表述，客户端可以容忍出现在一个不破坏响应的新的属性。但即使这样,在某些情况下还是充满了危险，如改变一个包含了内容或验证规则的现有属性的含义。
-
 ### *限制结果* ###
 “给我的项目3至55”这种请求方式与HTTP定义中使用Range头的方式是一致的
 
@@ -568,7 +562,163 @@ JSONP在一些不支持CORS的遗留浏览器中工作，但是如果要去支�
 As mentioned above, the recommendation is to support use of both the HTTP Range header plus query-string parameters, offset and limit, in our services to limit results in responses. Note that, given support for both options, the query-string parameters should override the Range header.
 One of the first questions your going to ask is, “Why are we supporting two metaphors with these similar functions as the numbers in the requests will never match? Isn't that confusing?” Um... That's two questions. Well, to answer your question, it may be confusing. The thing is, we want to make things in the ”
 
-摘录来自: Todd Fredrich. “RESTful Best Practices: Recommendations for Creating Web Services (v1.2)”。 iBooks. 
+## service版本控制 ##
+直线地说，版本控制是很难的，艰巨的，困难的，充满了心痛，甚至痛苦和极度的悲伤——我们只能说这增添了很多API的复杂性，并可能对访问它的客户端也增加了复杂度。因此，在你的API设计时应当深思熟虑，并努力达到不需要版本化的表述。
+
+不青睐使用版本控制，而不是使用版本控制来支撑不好的API设计。你会在早晨恨自己，如果你需要对你的API进行版本控制，更不用说频繁进行。精益的理念是使用JSON用法来表述，客户端可以容忍出现在一个不破坏响应的新的属性。但即使这样,在某些情况下还是充满了危险，如改变一个包含了内容或验证规则的现有属性的含义。
+
+不可避免的会有一段时间一个API需要改变它的返回或预期表示,这将导致consumer不能工作,这必须避免。版本控制API的方式避免打破你的客户和消费者。
+
+### *通过内容协商支持版本控制* ###
+历史版本控制是通过URI本身中的版本号来实现的,客户把他们想要的版本直接写在他们请求的URI中。事实上,许多“大男孩”,比如Twitter,Yammer,Facebook、谷歌等经常在uri中使用版本号。即使API管理工具如WSO2在暴露的url中也要求版本号。
+
+这种技术在面对REST约束是很有用,因为它不接受内置的HTTP规范的头系统，也不支持一个新的URI应该被添加只有当一个新的资源或概念被引入,而不是表示变化了。另一种反对观点是,资源uri不随时间变化。一个资源就是一个资源。
+
+URI应该简单地识别资源——而不是其“形状”。必须使用另一个概念，指定格式的响应(表示)。这个“概念”是一对HTTP标头:Accept和Content-Type。Accept标头允许客户指定响应的媒体类型(或类型)。content-type头被客户端和服务器都使用，分别表示请求或响应体的格式。
+
+例如, 用JSON格式检索一个User
+**\# Request**
+
+	GET http://api.example.com/users/12345
+	Accept: application/json; version=1
+
+**\# Response**
+
+	HTTP/1.1 200 OK
+	Content-Type: application/json; version=1
+	{“id”:”12345”, “name”:”Joe DiMaggio”}
+
+现在，同样使用JSON格式访问同一个资源，但适用version2
+**\# Request**
+
+	GET http://api.example.com/users/12345
+	Accept: application/json; version=2
+
+**\# Response**
+
+	HTTP/1.1 200 OK
+	Content-Type: application/json; version=2
+	{“id”:”12345”, “firstName”:”Joe”, “lastName”:”DiMaggio”}
+
+注意URI是相同的,Accept标头用于指定所需的响应格式(和版本)。如果客户端想要用xml格式返回，Accept头设置为application/xml，如果需要，加一个version。
+
+因为Accept头可以设置为允许多个媒体类型,在应对请求时,服务器将设置content-type头为最佳匹配客户端的请求的值。更多信息请看    http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
+
+例如：
+**\# Request**
+
+	GET http://api.example.com/users/12345
+	Accept: application/json; version=1, application/xml; version=1
+
+上面的请求可能会是JSON也可能为XML，取决于服务端。但无论server选择哪个，都会在Content-Type中设置出来。
+例如：如果server使用了XML来返回，
+
+**# Response**
+
+	HTTP/1.1 200 OK
+	Content-Type: application/xml; version=1
+
+	<user>
+	<id>12345</id>
+	<name>Joe DiMaggio</name>
+	</user>
+
+下面是一个使用JSON格式进行创建的例子：
+
+**# Request**
+
+	POST http://api.example.com/users
+	Content-Type: application/json; version=1
+
+	{“name”:”Marco Polo”}
+
+或者使用version2：
+**# Request**
+	POST http://api.example.com/users
+	Content-Type: application/json; version=2
+
+	{“firstName”:”Marco”, “lastName”:”Polo”}
+
+#### 当没有指定version时返回哪个版本 ####
+提供version在每个请求中都是可选项，因为HTTP内容协商遵循“最佳匹配”的方法。当一个consumer没有指定version，这个API应当返回这个表述的最老支持的版本。
+例如：
+**# Request**
+
+	GET http://api.example.com/users/12345
+	Accept: application/json
+**# Response**
+
+	HTTP/1.1 200 OK
+	Content-Type: application/json; version=1
+
+	{“id”:”12345”, “name”:”Joe DiMaggio”}
+
+同样的，当POST数据时，没有指定version，上面相同的规则会被使用。这里是一个在多版本端点使用JSON创建user的例子（期望是version1）：
+**# Request**
+
+	POST http://api.example.com/users
+	Content-Type: application/json
+	{“name”:”Marco Polo”}
+
+**# Response**
+
+	HTTP/1.1 201 OK
+	Content-Type: application/json; version=1
+	Location: http://api.example.com/users/12345
+
+	{“id”:”12345”, “name”:”Marco Polo”}
+
+#### 未支持版本的请求 ####
+当请求一个不受支持的版本号，包括弃用的API资源版本,API应该返回一个错误响应406(不可接受)。此外,API应该返回一个响应体Content-Type:application/json，包含了支持的content-type的一个JSON数组。
+**# Request**
+
+	GET http :// api . example . com / users/12345
+	Content-Type: application/json; version=999
+**# Response**
+
+	HTTP/1.1 406 NOT ACCEPTABLE
+	Content-Type: application/json
+
+	[“application/json; version=1”, “application/json; version=2”, “application/xml; version=1”,
+	“application/xml; version=2”]
+
+### *什么时候应该创建一个新版本* ###
+在API开发中有很多可能会打破合同给你的客户带来负面影响。如果你对改变后后果不确定，为稳妥起见,最好考虑版本。当你试图决定一个新版本是否合适或者一个对现有表述的修改是否足够或者可接受，有这样几个因素需要考虑。
+#### 会打破合同的修改 ####
+- 改变了property名字（“name”改成了“firstName”）
+- 移除property
+- 改变property的数据类型
+- 验证规则改变
+- 在Atom风格链接中，修改了“rel”的值
+- 一个请求的资源被引入了一个已存在的工作流
+- 资源概念/含义改变，例如：
+  - 一个content-type为text/html的资源曾经意味着表述是一个links的集合，新的text/html表述意味着用户输入的“web browser form”
+  - “.../users/{id}/exams/{id}”曾经表示在那个时间学生提交了考试，新的意思变成了这个考试的结束时间
+- 从一个现有资源添加新的字段从而不支持该资源。组合两个资源，成为一个资源，然后不再支持这两个本来的资源。
+  - 有两个资源，“.../users/{id}/dropboxBaskets/{id}/messages/{id}”和“.../users/{id}/dropboxBaskets/{id}/messages/{id}/readStatus”，新的需求是将readStatus资源的属性放到个人的message资源中，这会导致在个人message资源中移除一个指向readStatus的链接。
+
+虽然这个列表没有完全包含，但是他告诉了你哪些类型的change会对你的客户端造成大的破坏，以及需要一个新的资源或者一个新的版本。
+
+#### 没有破坏的改变 ####
+- 在JSON响应中添加新的属性
+- 新的/额外的链接指向其他资源
+- 新的content-type支持的格式
+- 新的content-language支持的格式
+- 大小写无关因为API producer和consumer都应该处理不同的大小写
+
+### *版本控制在哪一级别应该出现* ###
+### *使用Content-Location来增强响应* ###
+可选，见 RDF说明
+
+### *带Content-Type的links* ###
+Atom形式的链接支持一个‘type’属性。提供足够的信息，这样客户端可以对特定的version和content type构造必要的请求。
+
+### *找出那些版本是被支持的* ###
+#### 应该一次支持几个版本 ####
+因为维护多个版本变得繁琐,复杂,容易出错，代价也高，你应该对任何资源支持不超过2个版本。
+#### 弃用 ####
+弃用表示一个资源依然可用，但是将会不可用，在未来将不存在。
+#### 如何通知客户端哪些资源将弃用 ####
 
 
 ## 日期/时间处理 ##
