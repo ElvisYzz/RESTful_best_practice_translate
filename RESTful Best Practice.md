@@ -547,7 +547,7 @@ JSONP在一些不支持CORS的遗留浏览器中工作，但是如果要去支�
 
 除了限制返回的数据量，我们还需要考虑如何为“页”，或通过大型数据集滚动，如果超过了第一子集需要检索。这被称为数据的分页创造“页面” ，然后返回一个更大的列表的已知部分，并通过大型数据集能够页“前进”和“后退” 。另外，我们可能想要指定响应中要包括的资源的字段或属性，从而限制了返回的数据量，我们最终想要查询具体的值和/或为返回的数据排序。
 
-有两种主要的方法来限制​​查询结果并进行分页。首先，索引方案要么是面向页面或以项目为导向。换句话说，传入的请求将指定从哪页开始返回数据，指定每页的数量，或直接指定第一个和最后一个项目数（范围）返回。换句话说，有两个选项，“给我5页​​假设每页显示20项”或“给我100到120之间的内容。
+有两种主要的方法来限制​​查询结果并进行分页。首先，索引方案要么是面向页面或以项目为导向。换句话说，传入的请求将指定从哪页开始返回数据，指定每页的数量，或直接指定第一个和最后一个项目数（范围）返回。换句话说，有两个选项，“给我5页​​假设每页显示20项”或“给我100到120之间的内容”。
 
 服务提供商正在分裂这个应该如何工作。然而，一些用户界面工具，如Dojo JSON Datastore，选择以模仿HTTP规范使用的字节范围。这是非常有益的，如果你的服务支持开箱即用，因此没有必要在UI工具包和后端服务之间进行翻译。
 
@@ -556,11 +556,86 @@ JSONP在一些不支持CORS的遗留浏览器中工作，但是如果要去支�
 需要注意的是查询，过滤和分页不适用于所有服务，这是很重要的一点。此行为是资源特定的，不应该在默认情况下对所有资源支持。服务和资源的文档应该提到哪些端点支持这些更复杂的功能。 
 
 ### *限制结果* ###
-“给我的项目3至55”这种请求方式与HTTP定义中使用Range头的方式是一致的
+“给我的项目3至55”这种请求方式与HTTP定义中使用Range头的方式是一致的，但是”从第二项给我最多20项“的方式更便于人类阅读和理解，所以我们使用这种方式来支持query-string参数。
+如上所述，推荐是同时使用Range头和query-string参数，offset和limit。注意的是，同时使用的话，query-stirng参数会覆盖Range头。
+第一个问题是，为什么我们要支持两种方式，他们功能相似，而且请求中数据可能永远不会匹配。这是第二个问题。关键在于，我们希望让query-stirng里的东西非常清晰，容易理解，人类可读，容易构造和解析。但是，Range头更加机械化，HTTP说明文档中将用法写的很清楚了。
+简而言之，使用Range头的内容必须得解析，增加了复杂度，加上客户端也必须进行一个操作来构造这一请求。使用limit和offset参数更容易理解和创建。
+#### 通过Range头限制 ####
+使用Range头的方式如下：
+> Range: items=0-24
 
-“The “give me items 3 through 55” way of requesting data is more consistent with how the HTTP spec utilizes the Range header for bytes so we use that metaphor with the Range header. However, the “starting with item 2 give me a maximum of 20 items” is easier for humans to read, formulate and understand so we use that metaphor in supporting the query-string parameters.
-As mentioned above, the recommendation is to support use of both the HTTP Range header plus query-string parameters, offset and limit, in our services to limit results in responses. Note that, given support for both options, the query-string parameters should override the Range header.
-One of the first questions your going to ask is, “Why are we supporting two metaphors with these similar functions as the numbers in the requests will never match? Isn't that confusing?” Um... That's two questions. Well, to answer your question, it may be confusing. The thing is, we want to make things in the ”
+注意到它是从0开始的，这和HTTP说明中如何使用Range头进行请求时一致的。换句话说，数据集中第一项是从0开始的，上述请求将返回前25项，假设数据集中一共有至少25项内容。
+服务端检测Range头来知道返回哪些项，一旦一个Range被确定下来，将使用一个正则表达式去解析（例如：“items=(\\d+)-(\\d+)”）。
+
+#### 通过Query-String参数限制 ####
+Query-String使用了limit和offset参数，offset是起始项(相当于Range头中items的第一个数)，limit是最多返回的项数。例如上面的例子使用query-string参数：
+> GET http://api.example.com/resources?offset=0&limit=25
+
+服务端可以定义默认的limit值，为没有说明limit参数的情况服务。但是请在文档中说明这些不可见内容。
+注意query-string会覆盖Range的内容。
+#### 基于Range的响应 ####
+对一个基于Range的响应，不管是用Range头还是用query-stirng参数，服务端应当返回一个Content-Range头来指明哪些项被返回了，以及一共有多少项。
+> Content-Range: items 0-24/66
+
+注意到总量（66）并不是从0开始的，因此，请求最后几项时，Range-Content会被设置成这样：
+>Content-Range: items 40-65/66
+
+根据HTTP说明，如果响应时总数未知或者计算总数代价太高，（这里是66）可以使用\*替代。
+>Content-Range: items 40-65/*
+
+但是要注意Dojo或者一些UI工具并不支持这种表达。
+
+### *分页* ###
+上面用来限制结果的方式对分页同样起作用，通过允许指定感兴趣的数据项。使用上面的例子，一共有66项，每页25项，检索第二页内容：
+>Range: items=25-49
+
+或者通过query-string参数：
+> GET ...?offset=25&limit=25
+
+无论哪一种方式，服务端会返回：
+> Content-Range: 25-49/66
+
+通常这会工作得很好，但是偶尔有些情况数字不是直接翻译数据集中的某一行。同时，对一个非常活跃的数据集，新的项会被添加到列表的顶端，明显的”分页问题“就会出现，数据可能会重复。
+按时间顺序的数据集就像Tweeter。尽管你仍然可以用item number进行分页，但有时更有效以及更能理解的方式是使用before和after这两个query-string参数。一起使用Range头也是可选的（或者query-string的limit和offset参数）。
+例如，检索在某一个时间附近的remarks：
+
+	GET http://www.example.com/remarks/home_timeline?after=<timestamp>
+	Range: items=0-19
+	GET http://www.example.com/remarks/home_timeline?before=<timestamp>
+	Range: items=0-19
+同样的，使用query-string：
+
+	GET http://www.example.com/remarks/home_timeline?after=<timestamp>&offset=0&limit=20
+	GET http://www.example.com/remarks/home_timeline?before=<timestamp>&offset=0&limit=20
+
+即使客户端并没有指定Range，服务端也会有默认的数据集或者一个最大数量为一个默认值的一个数据集。例如上面那个例子，即使没有说明需要20项，服务端可能也只会返回20项，同样都会返回一个Content-Range头：
+>Content-Range: 0-19/4125
+或者Content-Range: 0-19/*
+
+### *过滤和排序* ###
+另一个需要考虑的是对返回内容的过滤和排序。这两者可以和上面的分页和限制结果一起使用,过滤和排序是复杂的操作，不需要对每个资源都进行这样的操作。在文档中说明哪些资源支持过滤和排序。
+
+#### 过滤 ####
+过滤就是指定一些标准从而达到减少返回的数据量。过滤可以变得很复杂，只要服务端设置了一组复杂的比较操作和复杂的匹配标准，但通常使用一些简单的比较，如start-with和contains是被接受的。
+在讨论过滤这个query-string参数之前，我们必须理解单个参数和多个参数的区别。这会变得不容易降低命名冲突，我们已经试用了limit，offset，sort（见下一节）参数，如果再要支持jsonp，format，可能还有after和before，这些也还只是在本文中提到的参数。使用更多的参数，我们会更可能碰到命名冲突。使用filter参数来进行最小化。
+另外，服务端也可容易判断是否是有带filter的请求，只需要简单的检查下filter参数是否存在。同时，当你查询需求的复杂度提高了，单个参数的方式提供了更多的灵活度，来创建你自己的全功能的查询语法。（见下面的OData注释或者http://www.odata.org）
+通过包含一组通用，被接受的分隔符，等式比较可以很直接的实现。设置filter参数的值可以通过使用这些分隔符来创建一系列的键值对，可以很容易被服务端解析和使用。约定的分隔符“|”来隔开一个filter的词组，“::”来隔开键和值。用一个例子说明：
+> GET http://www.example.com/users?filter="name::todd|city::denver|title::grand poobah"
+
+"::"隔开了属性名和值，从而允许在值中间使用空格，使得服务端容易解析。
+
+注意到键值对中的属性名如果匹配了服务端的属性名，会在响应的payload中返回。
+简单而有效。大小写敏感当然值得讨论，但是在通常情况下，大小写无关时过滤能最好的工作。你也可以使用“*”作为通配符在值中使用。
+对于那些使用等号或者通配符不能满足要求的查询，引入操作符是很有必要的。在这种情况下，操作符本身应当作为值得一部分被服务端解析，而不是作为属性名。当需要更复杂的查询语言风格的功能时，可以考虑从Open Data Protocol (OData) Filter System Query
+Option的说明文档（见 http://www.odata.org/documentation/uriconventions#
+FilterSystemQueryOption）引入查询概念。
+
+#### 排序 ####
+排序是对从service返回的payload中的内容决定应当以怎样的顺序排列。换句话说，就是对响应payload中多项内容的排序。
+推荐的方式是使用sort作为query-string参数包含一组被分隔开的属性名。默认行为是对每一个属性进行按升序排列。对带有“-”前缀的属性名使用降序排列。使用“|”来分割属性名，跟上面说的filter参数中一样。例如：
+> GET http://www.example.com/users?sort=last_name|first_name|-hire_date
+
+再次注意，所有匹配的属性会在响应payload中被返回。另外，由于其复杂度，只对需要的资源提供排序。如果需要的话，小的资源集合可以在客户端进行排序。
 
 ## service版本控制 ##
 直线地说，版本控制是很难的，艰巨的，困难的，充满了心痛，甚至痛苦和极度的悲伤——我们只能说这增添了很多API的复杂性，并可能对访问它的客户端也增加了复杂度。因此，在你的API设计时应当深思熟虑，并努力达到不需要版本化的表述。
@@ -707,6 +782,8 @@ URI应该简单地识别资源——而不是其“形状”。必须使用另�
 - 大小写无关因为API producer和consumer都应该处理不同的大小写
 
 ### *版本控制在哪一级别应该出现* ###
+推荐的是在单个资源的级别使用版本控制，一些对API的修改例如修改了工作流可能就需要对多个资源进行版本控制来防止破坏客户端。
+
 ### *使用Content-Location来增强响应* ###
 可选，见 RDF说明
 
@@ -719,7 +796,19 @@ Atom形式的链接支持一个‘type’属性。提供足够的信息，这样
 #### 弃用 ####
 弃用表示一个资源依然可用，但是将会不可用，在未来将不存在。
 #### 如何通知客户端哪些资源将弃用 ####
+在新的版本被引入之后，可能很多客户端还是在使用那些将要被弃用的资源，他们需要一些手段去恢复和监视他们的应用程序对这些弃用资源的使用。当一个将弃用的资源被请求时，API应当返回一个正常的响应，里面包含一个自定义的“Deprecated”头，如下：  
+\#Request
 
+	GET http://api.example.com/users/12345
+	Accept: application/json
+	Content-Type: application/json; version=1
+\# Response
+
+	HTTP/1.1 200 OK
+	Content-Type: application/json; version=1
+	Deprecated: true
+
+	{“id”:”12345”, “name”:”Joe DiMaggio”}
 
 ## 日期/时间处理 ##
 日期和时间戳是一个真正头痛的东西，如果不进行适当一致的处理。 
